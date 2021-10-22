@@ -1,0 +1,99 @@
+version: '3'
+services:
+
+    #PHP Service
+    app:
+        build:
+            context: .
+            dockerfile: Dockerfile
+        image: alpine
+        container_name: app
+        restart: unless-stopped
+        tty: true
+        environment:
+            SERVICE_NAME: app
+            SERVICE_TAGS: dev
+        working_dir: /var/www
+        volumes:
+            - ./:/var/www
+            - ./docker/php/php.ini:/usr/local/etc/php/conf.d/php.ini
+        networks:
+            - network
+
+    #NodeJS
+    npm:
+        image: node:14
+        container_name: npm
+        volumes:
+            -   .:/var/www
+        working_dir: /var/www
+        entrypoint: ['npm']
+        networks:
+            - network
+
+    #Nginx Service
+    nginx:
+        image: nginx:alpine
+        container_name: nginx
+        restart: unless-stopped
+        depends_on:
+            -   app
+        tty: true
+        ports:
+            - "80:80"
+            - "443:443"
+        volumes:
+            - ./:/var/www
+            - ./docker/nginx/conf.d/:/etc/nginx/conf.d/
+            - ./docker/logs/nginx:/var/log/nginx
+        networks:
+            - network
+
+    #MySQL Service
+    db:
+        image: mysql:5.7.22
+        container_name: db
+        restart: unless-stopped
+        tty: true
+        ports:
+            - "3306:3306"
+        environment:
+            MYSQL_DATABASE: finance
+            MYSQL_ROOT_PASSWORD: root
+            MYSQL_USER: user
+            MYSQL_PASSWORD: 123
+            SERVICE_TAGS: dev
+            SERVICE_NAME: mysql
+        volumes:
+            - dbdata:/var/lib/mysql
+            - ./docker/mysql/my.cnf:/etc/mysql/my.cnf
+            - ./docker/logs/mysql:/var/log/mysql
+        networks:
+            - network
+
+    #PHPMyAdmin
+    myadmin:
+        image: phpmyadmin/phpmyadmin
+        container_name: myadmin
+        restart: unless-stopped
+        tty: true
+        ports:
+            -   "8081:80"
+        depends_on:
+            - db
+        environment:
+            PMA_HOST: db
+            PMA_ARBITRARY: 1
+            SERVICE_TAGS: dev
+            SERVICE_NAME: myadmin
+        networks:
+            - network
+
+#Docker Networks
+networks:
+    network:
+        driver: bridge
+#Volumes
+volumes:
+    dbdata:
+        driver: local
